@@ -14,6 +14,13 @@ This implementation is based on the following resources:
 2. [Companion Module Implementation](https://github.com/search?q=repo%3Abitfocus%2Fcompanion-module-yamaha-rcp+sscurrent_ex&type=code) - Examples of RCP protocol usage
 3. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) - Additional protocol documentation
 
+## TODO
+
+- [ ] Add support TCP OSC
+- [ ] Add tests
+- [ ] Add documentation
+- [ ] Generate a compiled release
+
 ## Installation
 
 ```bash
