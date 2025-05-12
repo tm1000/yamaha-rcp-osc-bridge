@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rosc = "0.10.1"
+clap = { version = "4.5.38", features = ["derive"] }
+rosc = { path = "../rosc" }
 tokio = { version = "1.36", features = ["full"] }

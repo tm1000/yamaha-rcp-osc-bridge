@@ -2,15 +2,54 @@ use rosc::{OscMessage, OscPacket, OscType};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
+use clap::Parser;
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// The remote console IP
+    #[arg(short, long)]
+    console_ip: String,
+
+    /// The remote RCP port
+    #[arg(short, long, default_value_t = 49280)]
+    rcp_port: u16,
+}
+
+fn rcp_to_osc_arg(arg: &str) -> OscType {
+    if let Ok(i) = arg.parse::<i32>() {
+        OscType::Int(i)
+    } else if let Ok(f) = arg.parse::<f32>() {
+        OscType::Float(f)
+    } else {
+        OscType::String(arg.to_string())
+    }
+}
+
+fn osc_to_rcp_arg(arg: &OscType) -> String {
+    match arg {
+        OscType::Int(i) => i.to_string(),
+        OscType::Float(f) => f.to_string(),
+        OscType::String(s) => s.clone(),
+        _ => String::from("0"), // Default value for unsupported types
+    }
+}
+
+//https://github.com/bitfocus/companion-module-yamaha-rcp/blob/b0dfb601d142f3aa14120aad7561f8691641834e/paramFuncs.js#L150
+//https://github.com/search?q=repo%3Abitfocus%2Fcompanion-module-yamaha-rcp+sscurrent_ex&type=code
+//https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let rcp_port = 49280;
-    let rcp_host = "10.249.1.28";
+    let args = Args::parse();
+
+    // RCP (TCP) settings
+    let rcp_port = args.rcp_port;
+    let rcp_host = args.console_ip;
 
     // OSC (UDP) settings
-    let osc_out_addr = "127.0.0.1:8000";
-    let osc_in_addr = "0.0.0.0:8001"; // Listen for incoming OSC on port 8001
+    let osc_out_addr = "127.0.0.1:3999";
+    let osc_in_addr = "0.0.0.0:4000"; // Listen for incoming OSC on port 8001
 
     // Set up UDP sockets
     let socket_out = UdpSocket::bind("0.0.0.0:0").await?;
@@ -19,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Sending OSC messages to: {}", osc_out_addr);
 
     // Connect TCP
-    match TcpStream::connect((rcp_host, rcp_port)).await {
+    match TcpStream::connect((rcp_host.clone(), rcp_port)).await {
         Ok(stream) => {
             println!("Connected to Yamaha RCP: {}", rcp_host);
             let mut buffer = [0; 1024];
@@ -32,6 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Use tcp_read for the main loop
             let mut stream = tcp_read;
 
+            let mut incomplete_line = String::new();
             loop {
                 match stream.read(&mut buffer).await {
                     Ok(n) if n == 0 => {
@@ -39,71 +79,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         break;
                     }
                     Ok(n) => {
-                        let received = String::from_utf8_lossy(&buffer[..n]);
-                        let parts: Vec<&str> = received.trim().split_whitespace().collect();
-                        println!("Received RCP: {}", received.trim());
+                        let data = String::from_utf8_lossy(&buffer[..n]);
+                        incomplete_line.push_str(&data);
 
-                        if parts[0] == "NOTIFY" || parts[0] == "OK" {
-                            if parts.len() >= 5 {
-                                println!("Parts: {:?}", parts);
-                                let action = parts[1];
-                                let osc_address = parts[2];
-                                let x = parts[3].parse::<i32>().unwrap() + 1;
-                                let y = parts[4].parse::<i32>().unwrap() + 1;
-                                let type_tag = parts[5];
-                                let value = if parts.len() > 6 { parts[6] } else { "" };
+                        // Process each complete line
+                        while let Some(newline_pos) = incomplete_line.find('\n') {
+                            let line = incomplete_line[..newline_pos].to_string();
+                            incomplete_line = incomplete_line[newline_pos + 1..].to_string();
 
-                                // /yosc:req/<Action>/<OSC address>/<X>/<Y> <type tag> <value>
-                                // Construct OSC address pattern
-                                let osc_addr_pattern = format!(
-                                    "/yosc:req/{}/{}/{}/{} {} {}",
-                                    action, osc_address, x, y, type_tag, value
-                                );
+                            // Process the complete line
+                            let parts: Vec<&str> = line.trim().split_whitespace().collect();
 
-                                // Create OSC message
-                                let msg = OscMessage {
-                                    addr: osc_addr_pattern.clone(),
-                                    args: vec![OscType::String(value.to_string())],
-                                };
-
-                                // Convert to packet and send
-                                let packet = OscPacket::Message(msg);
-                                let encoded = rosc::encoder::encode(&packet)?;
-                                socket_out.send_to(&encoded, osc_out_addr).await?;
-
-                                println!("Sent OSC: {}", osc_addr_pattern);
-                            } else if parts.len() == 4 {
-                                let action = parts[1];
-                                let osc_address = parts[2];
-                                let x = parts[3];
-
-                                //yosc:req/<Action> <OSC address> <value>
-                                let osc_addr_pattern = format!(
-                                    "/yosc:req/{} {} {}",
-                                    action, osc_address, x
-                                );
-
-                                // Create OSC message
-                                let msg = OscMessage {
-                                    addr: osc_addr_pattern.clone(),
-                                    args: vec![OscType::String(x.to_string())],
-                                };
-
-                                //yosc:req/ssrecallt_ex MIXER:Lib/Scene "5.00"
-                                // Convert to packet and send
-                                let packet = OscPacket::Message(msg);
-                                let encoded = rosc::encoder::encode(&packet)?;
-                                socket_out.send_to(&encoded, osc_out_addr).await?;
-
-                                println!("Sent OSC: {}", osc_addr_pattern);
-                            } else {
-                                println!("Invalid message format: {}", received);
+                            if parts.is_empty() {
+                                continue;
                             }
-                        } else {
-                            println!("Invalid message format: {}", received);
-                        }
 
-                        println!();
+                            println!("Received RCP: {}", line.trim());
+
+                            match parts[0] {
+                                "NOTIFY" | "OK" => {
+                                    // Create OSC message
+                                    let osc_addr_pattern =
+                                        format!("/{}/{}/{}", parts[0], parts[1], parts[2]);
+
+                                    let args: Vec<OscType> =
+                                        parts[3..].iter().map(|part| rcp_to_osc_arg(part)).collect();
+
+                                    let msg = OscMessage {
+                                        addr: osc_addr_pattern.clone(),
+                                        args,
+                                    };
+
+                                    println!("Sent OSC: {}", msg);
+
+                                    // Convert to packet and send
+                                    let packet = OscPacket::Message(msg);
+                                    let encoded = rosc::encoder::encode(&packet)?;
+                                    socket_out.send_to(&encoded, osc_out_addr).await?;
+                                }
+                                "ERROR" => {
+                                    let args: Vec<OscType> =
+                                        parts[1..].iter().map(|part| rcp_to_osc_arg(part)).collect();
+
+                                    let msg = OscMessage {
+                                        addr: "/error".to_string(),
+                                        args,
+                                    };
+
+                                    println!("Sent OSC: {}", msg);
+
+                                    // Convert to packet and send
+                                    let packet = OscPacket::Message(msg);
+                                    let encoded = rosc::encoder::encode(&packet)?;
+                                    socket_out.send_to(&encoded, osc_out_addr).await?;
+                                }
+                                _ => {
+                                    println!("Unsupported message type: {}", parts[0]);
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         println!("Failed to receive data: {}", e);
@@ -132,41 +166,27 @@ async fn handle_incoming_osc(
                 if let Ok((_remaining, packet)) = rosc::decoder::decode_udp(&buf[..size]) {
                     match packet {
                         OscPacket::Message(msg) => {
+                            println!("Received OSC: {}", msg);
                             let address = msg.addr;
-                            println!("Received OSCSSSS: {}", address);
-                            let parts = address.split('/').collect::<Vec<&str>>();
-                            let arg = msg.args.first();
-                            if parts.len() >= 9 && parts[1] == "yosc:req" {
-                                let action = parts[2];
-                                let osc_address = parts[3..7].join("/");
-                                let x = parts[7].parse::<i32>().unwrap() - 1;
-                                let y = parts[8].parse::<i32>().unwrap() - 1;
 
-                                // Convert OSC argument to string based on its type
-                                let value_str = if let Some(value) = arg {
-                                    match value {
-                                        OscType::Int(i) => i.to_string(),
-                                        OscType::Float(f) => f.to_string(),
-                                        OscType::String(s) => s.clone(),
-                                        OscType::Bool(b) => b.to_string(),
-                                        _ => String::from("0"), // Default value for unsupported types
-                                    }
-                                } else {
-                                    String::from("0")
-                                };
+                            // Split address and remove empty parts
+                            let parts: Vec<&str> =
+                                address.split('/').filter(|s| !s.is_empty()).collect();
 
-                                let tcp_msg = format!(
-                                    "{} {} {} {} {}\n",
-                                    action, osc_address, x, y, value_str
-                                );
-                                println!("Sending RCP: {}", tcp_msg);
-                                if let Err(e) = stream.write_all(tcp_msg.as_bytes()).await {
+                            if let Some(command) = parts.first() {
+                                let rcp_command = format!("{} {}", command, parts[1..].join("/"));
+                                let args: Vec<String> = msg
+                                    .args
+                                    .iter()
+                                    .map(|arg| osc_to_rcp_arg(arg))
+                                    .collect();
+                                let rcp_command = format!("{} {}\n", rcp_command, args.join(" "));
+
+                                println!("Sent RCP: {}", rcp_command);
+                                if let Err(e) = stream.write_all(rcp_command.as_bytes()).await {
                                     eprintln!("Failed to write to RCP stream: {}", e);
                                 }
-                            } else {
-                                println!("Invalid message format: {}", address);
                             }
-                            println!();
                         }
                         OscPacket::Bundle(_) => {
                             println!("Received OSC bundle - not implemented");
