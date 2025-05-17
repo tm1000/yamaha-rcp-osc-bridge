@@ -2,11 +2,17 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
   workflow_call:
-
 env:
   CARGO_TERM_COLOR: always
 
