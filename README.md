@@ -14,21 +14,38 @@ Additionally this provides a small work around for Yamaha's RCP protocol which d
 
 Any commands send over OSC are passed back to this library as is.
 
-## References
+## Usage
 
-This implementation is based on the following resources:
+### Generic
 
-1. [Companion Module Implementation](https://github.com/bitfocus/companion-module-yamaha-rcp) - Examples of RCP protocol usage
-2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) - Additional protocol discussion
-3. [Yamaha RCP Protocol Documentation](https://my.yamaha.com/files/download/other_assets/8/1623778/DME7_remote_control_protocol_spec_v100_en.pdf) - Yamaha RCP Protocol Documentation
-4. [yamaha-rcp-docs](https://github.com/BrenekH/yamaha-rcp-docs) - Additional protocol discussion
+```bash
+yamaha-rcp-to-osc --console-ip 192.168.69.165
+```
+
+### Vor
+
+Example for DM3
+
+Create a Custom OSC connection.
+
+Change `Address 1` to `/ssinfo_ex/scene_a`
+
+Create a layout from Custom OSC with the label set to `Console: %1:2 %1:3`
+
+```bash
+yamaha-rcp-to-osc --console-ip 192.168.69.165 --udp-osc-out-port 5003
+```
+
+
 
 ## TODO
 
 - [ ] Add support TCP OSC
 - [ ] Add tests
 - [ ] Add documentation
-- [ ] Generate a compiled release
+- [X] Generate a compiled release
+
+
 
 ## Contributing
 
@@ -37,3 +54,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## References
+
+This implementation is based on the following resources:
+
+1. [Companion Module Implementation](https://github.com/bitfocus/companion-module-yamaha-rcp) - Examples of RCP protocol usage
+2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) - Additional protocol discussion
+3. [Yamaha RCP Protocol Documentation](https://my.yamaha.com/files/download/other_assets/8/1623778/DME7_remote_control_protocol_spec_v100_en.pdf) - Yamaha RCP Protocol Documentation
+4. [yamaha-rcp-docs](https://github.com/BrenekH/yamaha-rcp-docs) - Additional protocol discussion

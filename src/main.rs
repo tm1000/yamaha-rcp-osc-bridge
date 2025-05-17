@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::Mutex;
-mod common;
+use yamaha_rcp_to_osc as lib;
 
 /// Converts Yamaha RCP commands to OSC messages
 #[derive(Parser, Debug)]
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut incomplete_line = String::new();
             loop {
                 match rcp_read.read(&mut buffer).await {
-                    Ok(n) if n == 0 => {
+                    Ok(0) => {
                         println!("Connection closed by server");
                         break;
                     }
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         while let Some(newline_pos) = incomplete_line.find('\n') {
                             let line = incomplete_line[..newline_pos].to_string();
                             incomplete_line = incomplete_line[newline_pos + 1..].to_string();
-                            let parts = common::split_respecting_quotes(line.trim());
+                            let parts = lib::split_respecting_quotes(line.trim());
 
                             if parts.is_empty() {
                                 continue;
@@ -92,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             println!("Received RCP: {}", line.trim());
 
-                            let osc_message = match common::rcp_to_osc(line) {
+                            let osc_message = match lib::rcp_to_osc(line) {
                                 Ok(cmd) => cmd,
                                 Err(e) => {
                                     println!("Failed to convert RCP to OSC: {}", e);
@@ -153,7 +153,7 @@ async fn handle_incoming_osc(
                     match packet {
                         OscPacket::Message(msg) => {
                             println!("Received OSC: {}", msg);
-                            let rcp_command = match common::osc_to_rcp(&msg) {
+                            let rcp_command = match lib::osc_to_rcp(&msg) {
                                 Ok(cmd) => cmd,
                                 Err(e) => {
                                     println!("Failed to convert OSC to RCP: {}", e);
