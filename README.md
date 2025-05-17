@@ -41,11 +41,7 @@ yamaha-rcp-to-osc --console-ip 192.168.69.165 --udp-osc-out-port 5003
 ## TODO
 
 - [ ] Add support TCP OSC
-- [ ] Add tests
-- [ ] Add documentation
-- [X] Generate a compiled release
-
-
+- [ ] Add 1.1 OSC Support [https://github.com/klingtnet/rosc/pull/62](https://github.com/klingtnet/rosc/pull/62)
 
 ## Contributing
 
