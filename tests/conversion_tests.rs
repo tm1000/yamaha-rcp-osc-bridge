@@ -1,5 +1,7 @@
 use rosc::{OscMessage, OscType};
-use yamaha_rcp_to_osc::{rcp_to_osc, rcp_to_osc_type, split_respecting_quotes, osc_to_rcp, osc_to_rcp_arg};
+use yamaha_rcp_to_osc::{
+    osc_to_rcp, osc_to_rcp_arg, rcp_to_osc, rcp_to_osc_type, split_respecting_quotes,
+};
 
 #[test]
 fn test_rcp_to_osc_type() {
@@ -9,7 +11,9 @@ fn test_rcp_to_osc_type() {
 
     // Test float conversion
     let float_arg = "3.14".to_string();
-    assert!(matches!(rcp_to_osc_type(&float_arg), OscType::Float(f) if (f - 3.14).abs() < f32::EPSILON));
+    assert!(
+        matches!(rcp_to_osc_type(&float_arg), OscType::Float(f) if (f - 3.14).abs() < f32::EPSILON)
+    );
 
     // Test string conversion
     let string_arg = "test".to_string();
@@ -20,11 +24,17 @@ fn test_rcp_to_osc_type() {
 fn test_split_respecting_quotes() {
     // Test basic splitting
     let basic = "command arg1 arg2";
-    assert_eq!(split_respecting_quotes(basic), vec!["command", "arg1", "arg2"]);
+    assert_eq!(
+        split_respecting_quotes(basic),
+        vec!["command", "arg1", "arg2"]
+    );
 
     // Test quoted strings
     let quoted = r#"command "arg with spaces" arg2"#;
-    assert_eq!(split_respecting_quotes(quoted), vec!["command", "\"arg with spaces\"", "arg2"]);
+    assert_eq!(
+        split_respecting_quotes(quoted),
+        vec!["command", "\"arg with spaces\"", "arg2"]
+    );
 
     // Test empty string
     let empty = "";
@@ -32,7 +42,10 @@ fn test_split_respecting_quotes() {
 
     // Test string with multiple spaces
     let multi_space = "command   arg1    arg2";
-    assert_eq!(split_respecting_quotes(multi_space), vec!["command", "arg1", "arg2"]);
+    assert_eq!(
+        split_respecting_quotes(multi_space),
+        vec!["command", "arg1", "arg2"]
+    );
 }
 
 #[test]
@@ -44,7 +57,10 @@ fn test_osc_to_rcp_arg() {
     assert_eq!(osc_to_rcp_arg(&OscType::Float(3.14)).unwrap(), "3.14");
 
     // Test string conversion
-    assert_eq!(osc_to_rcp_arg(&OscType::String("test".to_string())).unwrap(), "\"test\"");
+    assert_eq!(
+        osc_to_rcp_arg(&OscType::String("test".to_string())).unwrap(),
+        "\"test\""
+    );
 
     // Test unsupported type
     assert!(osc_to_rcp_arg(&OscType::Nil).is_err());
@@ -89,12 +105,12 @@ fn test_osc_to_rcp() {
     // Test message with multiple arguments
     let osc_msg = OscMessage {
         addr: "/scene/name".to_string(),
-        args: vec![
-            OscType::Int(1),
-            OscType::String("Test Scene".to_string()),
-        ],
+        args: vec![OscType::Int(1), OscType::String("Test Scene".to_string())],
     };
-    assert_eq!(osc_to_rcp(&osc_msg).unwrap(), r#"scene name 1 "Test Scene""#);
+    assert_eq!(
+        osc_to_rcp(&osc_msg).unwrap(),
+        r#"scene name 1 "Test Scene""#
+    );
 
     // Test invalid address
     let invalid_msg = OscMessage {
