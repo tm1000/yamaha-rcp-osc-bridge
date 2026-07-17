@@ -12,10 +12,38 @@ jobs:
   tests:
     uses: ./.github/workflows/tests.yml
 
+  # Runs `make bump-version` once, on Linux (where make/sed are guaranteed
+  # present — windows-latest doesn't ship GNU Make), deriving the version
+  # from the pushed tag. The resulting manifests + lockfiles are handed to
+  # the OS-specific build jobs below as an artifact, so every built binary
+  # embeds the tag's version without anyone needing to remember to bump it
+  # by hand before tagging.
+  bump-version:
+    name: Bump version from tag
+    runs-on: ubuntu-latest
+    needs: [tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump version to match tag
+        run: make bump-version VERSION="${GITHUB_REF_NAME#v}"
+
+      - name: Upload versioned manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: versioned-manifests
+          path: |
+            Cargo.toml
+            Cargo.lock
+            src-tauri/Cargo.toml
+            src-tauri/Cargo.lock
+            package.json
+            src-tauri/tauri.conf.json
+
   build:
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: [tests]
+    needs: [tests, bump-version]
     strategy:
       matrix:
         include:
@@ -28,6 +56,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download versioned manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: versioned-manifests
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -56,13 +89,18 @@ jobs:
   build-gui:
     name: Build GUI ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: [tests]
+    needs: [tests, bump-version]
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download versioned manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: versioned-manifests
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
