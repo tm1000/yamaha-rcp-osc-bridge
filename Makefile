@@ -86,8 +86,8 @@ bump-version: ## Set the version across all manifests (make bump-version VERSION
 	sed -i.bak 's/^version = ".*"/version = "$(VERSION)"/' src-tauri/Cargo.toml && rm src-tauri/Cargo.toml.bak
 	sed -i.bak 's/"version": ".*"/"version": "$(VERSION)"/' package.json && rm package.json.bak
 	sed -i.bak 's/"version": ".*"/"version": "$(VERSION)"/' src-tauri/tauri.conf.json && rm src-tauri/tauri.conf.json.bak
-	cargo build --offline > /dev/null 2>&1 || cargo build > /dev/null
-	cd src-tauri && (cargo build --offline > /dev/null 2>&1 || cargo build > /dev/null)
+	cargo generate-lockfile
+	cd src-tauri && cargo generate-lockfile
 	@echo "Done. Review the diff, then: git commit -am 'chore: bump version to $(VERSION)' && git tag v$(VERSION) && git push origin main v$(VERSION)"
 
 ## Cleanup
