@@ -21,9 +21,10 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      actions:
-        patterns:
-          - "*"
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
   - package-ecosystem: github-actions
     directory: /
     schedule:
