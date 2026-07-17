@@ -76,6 +76,8 @@ yamaha-rcp-to-osc --console-ip 192.168.69.165 --udp-osc-out-port 5003
 
 A Tauri v2 + React desktop app wraps the same bridge core with a configuration form, start/stop controls, and a live status indicator.
 
+<img src="macos-screenshot.png" alt="Yamaha RCP to OSC Bridge GUI on macOS" width="600">
+
 ```bash
 npm install
 npm run tauri dev     # development with hot reload

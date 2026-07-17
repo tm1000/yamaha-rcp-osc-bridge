@@ -67,8 +67,49 @@ jobs:
         with:
           targets: ${{ matrix.os == 'windows-latest' && 'x86_64-pc-windows-msvc' || 'x86_64-apple-darwin' }}
 
+      # Imports the Developer ID Application cert into a throwaway keychain
+      # scoped to this job (the runner VM is destroyed afterward), so the
+      # `codesign` step below can find it.
+      - name: Import Apple certificate and set up keychain
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      # Notarization auth for the App Store Connect API key route (this is
+      # Apple's malware-scan service for third-party distribution — nothing
+      # here submits the app to the App Store).
+      - name: Write Apple API key for notarization
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: echo "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/apple_api_key.p8"
+
       - name: Build
         run: cargo build --release
+
+      # Raw binaries (unlike .app/.dmg/.pkg) can't have a notarization ticket
+      # stapled into them, so Gatekeeper checks the ticket online the first
+      # time someone runs it — that's still enough to clear the "unidentified
+      # developer" warning, it just needs network access on first launch.
+      - name: Sign CLI binary (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          IDENTITY=$(jq -r '.bundle.macOS.signingIdentity' src-tauri/tauri.conf.json)
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" target/release/${{ matrix.artifact_name }}
 
       - name: Prepare asset
         shell: bash
@@ -77,14 +118,29 @@ jobs:
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             7z a ../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
           else
-            tar -czf ../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+            ditto -c -k --keepParent ${{ matrix.artifact_name }} ../../${{ matrix.asset_name }}.zip
           fi
+
+      # Apple's notary service only accepts zip/dmg/pkg, so this notarizes
+      # the exact zip prepared above — the same file that gets uploaded as
+      # the release asset below.
+      - name: Notarize CLI binary (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          xcrun notarytool submit "${{ matrix.asset_name }}.zip" \
+            --key "$RUNNER_TEMP/apple_api_key.p8" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+            ${{ matrix.asset_name }}.zip
 
   build-gui:
     name: Build GUI ${{ matrix.os }}
