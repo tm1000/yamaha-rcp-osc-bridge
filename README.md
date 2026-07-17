@@ -122,6 +122,6 @@ To test without a physical console, `npm run nc` starts a netcat listener on the
 ## References
 
 1. [Companion Module Implementation](https://github.com/bitfocus/companion-module-yamaha-rcp) — examples of RCP protocol usage
-2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) — protocol discussion
-3. [Yamaha RCP Protocol Documentation](https://my.yamaha.com/files/download/other_assets/8/1623778/DME7_remote_control_protocol_spec_v100_en.pdf) — official DME7 RCP spec
+2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266) — protocol discussion
+3. [Yamaha Remote Control Protocol Specifications](https://data.yamaha.com/files/download/other_assets/4/2230684/DME7-remote-V110_en.pdf) — official DME7 RCP spec
 4. [yamaha-rcp-docs](https://github.com/BrenekH/yamaha-rcp-docs) — community protocol documentation
