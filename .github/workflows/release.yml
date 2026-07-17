@@ -52,3 +52,84 @@ jobs:
         with:
           files: |
             ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+
+  build-gui:
+    name: Build GUI ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: [tests]
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Imports the Developer ID Application cert into a throwaway keychain
+      # scoped to this job (the runner VM is destroyed afterward), so
+      # `tauri build` can find it via the signingIdentity in tauri.conf.json.
+      - name: Import Apple certificate and set up keychain
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      # Notarization auth for the App Store Connect API key route (this is
+      # Apple's malware-scan service for third-party distribution — nothing
+      # here submits the app to the App Store).
+      - name: Write Apple API key for notarization
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: echo "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/apple_api_key.p8"
+
+      - name: Build GUI bundle (macOS, signed + notarized)
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple_api_key.p8
+        run: npx tauri build
+
+      - name: Build GUI bundle (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx tauri build
+
+      - name: Upload GUI bundle (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Upload GUI bundle (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe

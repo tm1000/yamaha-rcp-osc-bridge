@@ -1,61 +1,125 @@
+<div align="center">
+
+<img src="app-icon.png" alt="Yamaha RCP to OSC Bridge" width="128" height="128">
+
 # Yamaha RCP to OSC Bridge
 
-A Rust-based utility that bridges Yamaha RCP (Remote Control Protocol) commands to OSC (Open Sound Control) messages, enabling integration between Yamaha mixing consoles and OSC-compatible systems.
+A Rust-based bridge that translates Yamaha RCP (Remote Control Protocol) commands into OSC (Open Sound Control) messages, enabling integration between Yamaha mixing consoles and OSC-compatible systems.
+
+[Overview](#overview) • [Getting started](#getting-started) • [Usage](#usage) • [GUI](#gui) • [Development](#development) • [References](#references)
+
+</div>
 
 ## Overview
 
-This project translates Yamaha's proprietary RCP protocol into standardized OSC messages, making it possible to control Yamaha mixing consoles through OSC-compatible software and hardware. It's particularly useful for custom control solutions and integration with various audio control systems.
+Yamaha does not provide a real-time interface to their consoles. The only way to get real-time data is through RCP, a proprietary and largely undocumented protocol. This project bridges RCP to OSC, making it possible to control and monitor Yamaha mixing consoles (DM3, DM7, QL, CL, and similar) from any OSC-compatible software or hardware.
 
-## Why
+```
+┌─────────────────┐   RCP (TCP)   ┌────────────────────┐   OSC (UDP)   ┌─────────────────┐
+│ Yamaha console  │ ◄───────────► │ yamaha-rcp-to-osc  │ ◄───────────► │ OSC application │
+└─────────────────┘               └────────────────────┘               └─────────────────┘
+```
 
-You might be surprised to know that Yamaha does not provide a real-time interface to their consoles. The only way to get real-time data is to use the RCP protocol, which is a proprietary protocol that is not documented by Yamaha. This project provides a bridge between the RCP protocol and OSC, making it possible to control Yamaha mixing consoles through OSC-compatible software and hardware.
+Features:
 
-Additionally this provides a small work around for Yamaha's RCP protocol which does not give detailed information when a notification of `sscurrent_ex` is received. In this case this utility will send a `ssinfo_ex` command to get the current scene information.
+- **Bidirectional bridging** — RCP notifications are converted to OSC messages, and incoming OSC messages are passed back to the console as RCP commands.
+- **Scene detail workaround** — RCP's `sscurrent_ex` notification carries no detail, so the bridge automatically issues an `ssinfo_ex` query to fetch full current-scene information.
+- **CLI and GUI** — run it headless from the command line, or use the Tauri-based desktop app.
+- **Fast restarts** — sockets are configured with `SO_REUSEADDR`/`SO_REUSEPORT` so the bridge can be restarted immediately.
 
-Any commands send over OSC are passed back to this library as is.
+## Getting started
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) (stable) for the CLI
+- [Node.js](https://nodejs.org/) 18+ and npm, only if you want the GUI
+
+### Installation
+
+Download a prebuilt CLI binary from the [releases page](../../releases), or build from source:
+
+```bash
+cargo build --release
+# binary at target/release/yamaha-rcp-to-osc
+```
 
 ## Usage
-
-### Generic
 
 ```bash
 yamaha-rcp-to-osc --console-ip 192.168.69.165
 ```
 
-### Vor
+### Options
 
-Example for DM3
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--console-ip` | Console IP address (required) | — |
+| `--rcp-port` | Console RCP port | `49280` |
+| `--udp-osc-out-addr` | Address to send OSC messages to | `127.0.0.1` |
+| `--udp-osc-out-port` | Port to send OSC messages to | `3999` |
+| `--udp-osc-in-addr` | Local address to listen for OSC on | `0.0.0.0` |
+| `--udp-osc-in-port` | Local port to listen for OSC on | `4000` |
 
-Create a Custom OSC connection.
+### Example: Vor
 
-Change `Address 1` to `/ssinfo_ex/scene_a`
+To display the current scene of a DM3 in [Vor](https://thelightingcontroller.com/):
 
-Create a layout from Custom OSC with the label set to `Console: %1:2 %1:3`
+1. Create a Custom OSC connection.
+2. Set `Address 1` to `/ssinfo_ex/scene_a`.
+3. Create a layout from Custom OSC with the label set to `Console: %1:2 %1:3`.
 
 ```bash
 yamaha-rcp-to-osc --console-ip 192.168.69.165 --udp-osc-out-port 5003
 ```
 
+## GUI
 
+A Tauri v2 + React desktop app wraps the same bridge core with a configuration form, start/stop controls, and a live status indicator.
 
-## TODO
+```bash
+npm install
+npm run tauri dev     # development with hot reload
+npm run tauri build   # production build in src-tauri/target/release/bundle/
+```
 
-- [ ] Add support TCP OSC
-- [ ] Add 1.1 OSC Support [https://github.com/klingtnet/rosc/pull/62](https://github.com/klingtnet/rosc/pull/62)
+> [!NOTE]
+> The GUI and the CLI share the same Rust library (`src/lib.rs`), so bridge behavior is identical in both.
 
-## Contributing
+## Development
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+A `Makefile` wraps the commands below — run `make help` to see all targets (`make dev`, `make build`, `make gui-build`, `make check`, etc.).
 
-## License
+```bash
+cargo run -- --console-ip 192.168.1.100   # run the CLI from source
+cargo test                                # run the test suite
+cargo clippy -- -D warnings               # lint
+cargo fmt                                 # format
+npm run lint                              # lint the GUI frontend
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+To test without a physical console, `npm run nc` starts a netcat listener on the RCP port (49280).
+
+### Project layout
+
+```
+├── src/
+│   ├── lib.rs            # Core bridge logic (shared by CLI and GUI)
+│   ├── main.rs           # CLI entry point
+│   ├── App.tsx           # GUI frontend (React)
+│   └── main.tsx          # React entry point
+├── src-tauri/            # Tauri backend (start/stop bridge commands)
+├── tests/                # Integration tests (RCP <-> OSC conversion)
+└── .github/workflows/    # CI: tests on Linux/macOS/Windows, tagged releases
+```
+
+## Roadmap
+
+- [ ] TCP OSC support
+- [ ] OSC 1.1 support ([rosc#62](https://github.com/klingtnet/rosc/pull/62))
 
 ## References
 
-This implementation is based on the following resources:
-
-1. [Companion Module Implementation](https://github.com/bitfocus/companion-module-yamaha-rcp) - Examples of RCP protocol usage
-2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) - Additional protocol discussion
-3. [Yamaha RCP Protocol Documentation](https://my.yamaha.com/files/download/other_assets/8/1623778/DME7_remote_control_protocol_spec_v100_en.pdf) - Yamaha RCP Protocol Documentation
-4. [yamaha-rcp-docs](https://github.com/BrenekH/yamaha-rcp-docs) - Additional protocol discussion
+1. [Companion Module Implementation](https://github.com/bitfocus/companion-module-yamaha-rcp) — examples of RCP protocol usage
+2. [QL Series SCP Commands Documentation](https://discourse.checkcheckonetwo.com/t/ql-series-scp-commands/2266/21) — protocol discussion
+3. [Yamaha RCP Protocol Documentation](https://my.yamaha.com/files/download/other_assets/8/1623778/DME7_remote_control_protocol_spec_v100_en.pdf) — official DME7 RCP spec
+4. [yamaha-rcp-docs](https://github.com/BrenekH/yamaha-rcp-docs) — community protocol documentation

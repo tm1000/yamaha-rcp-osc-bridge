@@ -9,6 +9,12 @@ on:
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - 'eslint.config.mjs'
   pull_request:
     branches:
       - main
@@ -53,3 +59,47 @@ jobs:
 
     - name: Check formatting
       run: cargo fmt -- --check
+
+  gui:
+    name: GUI Checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+
+    - name: Install Tauri Linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev libgtk-3-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev
+
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+
+    - name: Install frontend dependencies
+      run: npm ci
+
+    - name: Lint frontend
+      run: npm run lint
+
+    - name: Build frontend
+      run: npm run build
+
+    - name: Check GUI backend formatting
+      working-directory: src-tauri
+      run: cargo fmt -- --check
+
+    - name: Build GUI backend
+      working-directory: src-tauri
+      run: cargo build --verbose
+
+    - name: Run GUI backend clippy
+      working-directory: src-tauri
+      run: cargo clippy -- -D warnings

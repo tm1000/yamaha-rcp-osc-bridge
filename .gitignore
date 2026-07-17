@@ -1,1 +1,18 @@
 /target
+/dist
+src-tauri/target
+src-tauri/dist
+node_modules
+.DS_Store
+*.log
+
+# Secrets / signing material — pattern-based so a renamed or regenerated
+# credential (new API key, renewed cert, etc.) is still caught.
+.env
+.env.*
+*.p8
+*.p12
+*.cer
+*.pem
+*.key
+*.certSigningRequest
