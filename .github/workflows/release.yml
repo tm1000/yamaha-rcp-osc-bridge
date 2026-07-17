@@ -27,7 +27,7 @@ jobs:
             asset_name: yamaha-rcp-to-osc-windows.exe
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
@@ -62,13 +62,13 @@ jobs:
         os: [macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -121,14 +121,14 @@ jobs:
 
       - name: Upload GUI bundle (macOS)
         if: matrix.os == 'macos-latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             src-tauri/target/release/bundle/dmg/*.dmg
 
       - name: Upload GUI bundle (Windows)
         if: matrix.os == 'windows-latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             src-tauri/target/release/bundle/msi/*.msi
