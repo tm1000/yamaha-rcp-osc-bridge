@@ -116,7 +116,7 @@ To test without a physical console, `npm run nc` starts a netcat listener on the
 
 ## Roadmap
 
-- [ ] TCP OSC support
+- [ ] TCP OSC support ([rosc#62](https://github.com/klingtnet/rosc/pull/62))
 - [ ] OSC 1.1 support ([rosc#62](https://github.com/klingtnet/rosc/pull/62))
 
 ## References
